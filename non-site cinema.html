@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>n o n s i t e c i n e m a</title>
+<style>
+  body {
+    margin: 0;
+    background: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  canvas {
+    border: 1px solid #000;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="700" height="700"></canvas>
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const W = canvas.width;
+const H = canvas.height;
+
+const ANIMATION_DURATION = 60000; // 60 secondi
+const startTime = performance.now();
+
+// Margini per il rettangolo nero "soil"
+const SOIL_RATIO = 0.3;
+const SOIL_Y = H * (1 - SOIL_RATIO);
+const SOIL_MARGIN_X = 190; // margine orizzontale
+const SOIL_MARGIN_Y = 20;  // margine verticale
+
+/* ===============================
+   PIANTINA + RAMIFICAZIONI
+   =============================== */
+const stemBaseX = W / 2;
+const stemBaseY = SOIL_Y + SOIL_MARGIN_Y; // parte dalla terra nera
+
+// array di rami: ogni ramo è {x1,y1,x2,y2,progress,thickness}
+let branches = [{
+  x1: stemBaseX,
+  y1: stemBaseY,
+  x2: stemBaseX,
+  y2: 0,
+  progress: 0,
+  thickness: 3,
+  childrenGenerated: 0
+}];
+
+/* ===============================
+   RADICI
+   =============================== */
+let roots = [];
+const numRoots = 40;
+const rootSpeed = 4;
+
+// inizializza radici dalla base della piantina
+for(let i=0;i<numRoots;i++){
+  roots.push({
+    x: stemBaseX + (Math.random()-0.5)*15,
+    y: stemBaseY,
+    segments: [],
+    letters: [],
+    letterIndex: 0
+  });
+}
+
+/* ===============================
+   ANIMAZIONE
+   =============================== */
+function animate(time){
+  const elapsed = time - startTime;
+  const progress = Math.min(elapsed/ANIMATION_DURATION,1);
+
+  // sfondo bianco
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0,0,W,H);
+
+  // terra nera più piccola
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(
+    SOIL_MARGIN_X,
+    SOIL_Y + SOIL_MARGIN_Y,
+    W - 2*SOIL_MARGIN_X,
+    H*SOIL_RATIO - SOIL_MARGIN_Y
+  );
+
+  /* ====== PIANTINA + RAMIFICAZIONE ====== */
+  const growthSpeed = 2.5;
+  let newBranches = [];
+
+  branches.forEach(branch=>{
+    branch.progress += growthSpeed*0.02;
+
+    // posizione finale del segmento
+    let xEnd = branch.x1 + (branch.x2 - branch.x1) * 1.2*branch.progress;
+    let yEnd = branch.y1 + (branch.y2 - branch.y1) * 0.5*branch.progress;
+
+    // gradiente dal nero alla base al bianco in alto
+    let gradient = ctx.createLinearGradient(branch.x1, branch.y1, branch.x1, branch.y2);
+    gradient.addColorStop(0,"#000000");
+    gradient.addColorStop(1,"#ffffff");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = branch.thickness;
+
+    ctx.beginPath();
+    ctx.moveTo(branch.x1, branch.y1);
+    ctx.lineTo(xEnd, yEnd);
+    ctx.stroke();
+
+    // genera più ramificazioni: massimo 50 rami per stelo
+    if(branch.childrenGenerated < 50 && branch.progress > 0.1){
+      let angle = (Math.random()-0.5) * 3 * Math.PI/2;
+      let length = Math.random()*50 + 30;
+      let newX = xEnd + Math.sin(angle)*length;
+      let newY = yEnd - Math.cos(angle)*length;
+      let newThickness = Math.max(branch.thickness*0.4, 1.2);
+      newBranches.push({
+        x1: xEnd,
+        y1: yEnd,
+        x2: newX,
+        y2: newY,
+        progress: 0,
+        thickness: newThickness,
+        childrenGenerated: 0
+      });
+      branch.childrenGenerated++;
+    }
+  });
+
+  branches = branches.concat(newBranches);
+
+  /* ===============================
+     RADICI
+  =============================== */
+  roots.forEach(root=>{
+    if(root.segments.length===0){
+      root.segments.push({x: root.x, y: root.y, color: "#ffffff"});
+    }
+
+    if(root.segments[root.segments.length-1].y < H + 50){
+      const last = root.segments[root.segments.length-1];
+      let dx = (Math.random()-0.5)*8;
+      let dy = Math.random()*rootSpeed*3;
+      let newX = last.x + dx;
+      let newY = last.y + dy;
+
+      // i colori cambiano se le radici sono dentro la terra nera
+      let color = (newY < H && newY >= SOIL_Y + SOIL_MARGIN_Y) ? "#ffffff" : "#000000";
+      root.segments.push({x:newX, y:newY, color:color});
+
+      if(newY < SOIL_Y + SOIL_MARGIN_Y && newY > 0 && root.letterIndex < 4){
+        root.letters.push({x:newX, y:newY, char:"ROOT"[root.letterIndex]});
+        root.letterIndex++;
+      }
+    }
+
+    for(let i=1;i<root.segments.length;i++){
+      const a = root.segments[i-1];
+      const b = root.segments[i];
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 0.2;
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);
+      ctx.lineTo(b.x,b.y);
+      ctx.stroke();
+    }
+
+    root.letters.forEach(l=>{
+      ctx.fillStyle="#ffffff";
+      ctx.font="10px Arial";
+      ctx.fillText(l.char,l.x,l.y);
+    });
+  });
+
+  if(progress < 1){
+    requestAnimationFrame(animate);
+  }
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
